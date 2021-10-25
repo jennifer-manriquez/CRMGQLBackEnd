@@ -2,6 +2,7 @@
 //resolvers
 const resolvers = {
   Query: {
+    getCourse: () => "Something"
   }
 }
 
