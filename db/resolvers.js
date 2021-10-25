@@ -20,8 +20,12 @@ const courses = [
 //resolvers
 const resolvers = {
   Query: {
-    getCourses: () => courses,
-    getTechnology: () => courses
+    getCourses: (_, {input}, ctx, info) => 
+    {
+      console.log(ctx);
+      const result = courses.filter(course => course.technology === input.technology);
+      return result;
+    }
   }
 }
 

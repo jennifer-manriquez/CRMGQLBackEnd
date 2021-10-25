@@ -5,7 +5,13 @@ const resolvers = require('./db/resolvers');
 //server
 const server = new ApolloServer({
   typeDefs, 
-  resolvers
+  resolvers, 
+  context: () => {
+    const miContext = "Hola";
+    return {
+      miContext
+    }
+  }
 });
 
 //start server
