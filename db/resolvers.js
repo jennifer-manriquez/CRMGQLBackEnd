@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Product = require('../models/Product');
+const Client = require('../models/Client');
 const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: '.env' });
@@ -39,6 +40,38 @@ const resolvers = {
       }
 
       return product
+    },
+
+    getClients: async () => {
+      try {
+        const clients = await Client.find({});
+        return clients
+      } catch (error) {
+        console.log(error)
+      }
+    },
+
+    getSalesmanClients: async (_, {}, ctx) => {
+      try {
+        const clients = await Client.find({salesman: ctx.user.id.toString()});
+        return clients
+      } catch (error) {
+        console.log(error)
+      }
+    },  
+    getClient: async (_, {id}, ctx) => {
+      //Check that client exists
+      const client = await Client.findById(id);
+      if (!client) {
+        throw new Error('Client not found');
+      }
+     
+      //Who created it can see it
+      if(client.salesman.toString() !== ctx.user.id){
+        throw new Error("You don't have credentials to see this client");
+      }
+
+      return client
     },
   },
 
@@ -126,6 +159,66 @@ const resolvers = {
       //Delete
       await Product.findOneAndDelete({_id: id});
       return 'Product has been deleted'
+    }, 
+
+    newClient: async (_, { input }, ctx) => {
+      const { email } = input
+
+      console.log(ctx)
+      //Check client is registered
+      const client = await Client.findOne({ email })
+
+      if (client) {
+        throw new Error('That client is already registered');
+      }
+
+      const newClient = new Client(input)
+
+      //Assign salesman
+      newClient.salesman = ctx.user.id;
+
+
+      //Save in database
+      try {
+        const result = await newClient.save();
+        return result
+      } catch(error) {
+        console.log("Error, couldn't save")
+      } 
+    },
+    updateClient: async (_, {id, input }, ctx) => {
+
+      //check if client exists
+      let client = await Client.findById(id);
+      if (!client) {
+        throw new Error('Client not found');
+      }
+
+      //check salesman to ve editing
+      if (client.salesman.toString() !== ctx.user.id) {
+        throw new Error("You don't have credentials to see this client");
+      }
+
+      //save client 
+      client = await Client.findOneAndUpdate({_id: id}, input, {new: true});
+      return client
+    }, 
+    deleteClient: async (_, { id }, ctx) => {
+
+      //check if client exists
+      let client = await Client.findById(id);
+      if (!client) {
+        throw new Error('Client not found');
+      }
+
+      //check salesman to ve editing
+      if (client.salesman.toString() !== ctx.user.id) {
+        throw new Error("You don't have credentials to delete this client");
+      }
+
+      //Delete client 
+      client = await Client.findOneAndDelete({ _id: id });
+      return "Client was deleted"
     }
   }
 }
