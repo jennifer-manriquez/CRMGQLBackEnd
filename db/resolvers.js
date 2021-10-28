@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Product = require('../models/Product');
 const Client = require('../models/Client');
+const Order = require('../models/Order');
 const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: '.env' });
@@ -211,7 +212,7 @@ const resolvers = {
         throw new Error('Client not found');
       }
 
-      //check salesman to ve editing
+      //check salesman to be editing
       if (client.salesman.toString() !== ctx.user.id) {
         throw new Error("You don't have credentials to delete this client");
       }
@@ -219,7 +220,44 @@ const resolvers = {
       //Delete client 
       client = await Client.findOneAndDelete({ _id: id });
       return "Client was deleted"
-    }
+    },
+    newOrder: async (_, { input }, ctx) => {
+
+      const {client} = input
+      //Check that client exists
+      let clientExists = await Client.findById(client);
+      if (!clientExists) {
+        throw new Error('Client not found');
+      }
+
+      //Check that client is from seller
+      if (clientExists.salesman.toString() !== ctx.user.id) {
+        throw new Error("You don't have credentials to delete this client");
+      }
+
+      //Check availability in stock
+      for await (const item of input.order) {
+        const { id } = item 
+        const product = await Product.findById(id)
+        if (item.quantity > product.availability){
+          throw new Error(`The article: ${product.name} exceds the available quantity`)
+        } else {
+          //Substract quantity from availability
+          product.availability = product.availability - item.quantity
+          await product.save();
+        }
+      };
+      
+      //Create the order
+      const newOrder = new Order(input);
+
+      //Asign a seller
+      newOrder.salesman = ctx.user.id;
+
+      //Save in database
+      const result = await newOrder.save();
+      return result
+    },
   }
 }
 
