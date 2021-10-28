@@ -4,6 +4,7 @@ const Client = require('../models/Client');
 const Order = require('../models/Order');
 const bcryptjs = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { Error } = require('mongoose');
 require('dotenv').config({ path: '.env' });
 
 const createToken = (user, secret, expiresIn) => {
@@ -60,6 +61,7 @@ const resolvers = {
         console.log(error)
       }
     },  
+    
     getClient: async (_, {id}, ctx) => {
       //Check that client exists
       const client = await Client.findById(id);
@@ -73,6 +75,45 @@ const resolvers = {
       }
 
       return client
+    },
+
+    getOrders: async () => {
+      try {
+        const orders = await Order.find({});
+        return orders 
+      } catch {
+        console.log(error);
+      }
+    },
+
+    getOrdersSeller: async (_, {id}, ctx) => {
+      try {
+        const orders = await Order.find({salesman: ctx.user.id});
+        return orders
+      } catch {
+        console.log(error);
+      }
+    },
+
+    getOrder: async (_, { id }, ctx) => {
+      //check that the order exists
+      const order = await Order.findById(id);
+      if (!order) {
+        throw new Error('Order not found')
+      } 
+
+      //only creator can see it
+      if (order.salesman.toString() !== ctx.user.id){
+        throw new Error("You don't have the right credentials to see this Order")
+      }
+
+      //return result
+      return order
+    },
+
+    getOrdersStatus: async (_, { status }, ctx) => {
+      const orders = await Order.find({salesman: ctx.user.id, status});
+      return orders
     },
   },
 
@@ -137,6 +178,7 @@ const resolvers = {
         console.log(error);
       }
     },
+
     updateProduct: async (_, { id, input }) => {
       //check that product exists
       let product = await Product.findById(id);
@@ -149,6 +191,7 @@ const resolvers = {
       product = await Product.findOneAndUpdate({_id: id}, input, {new: true});
       return product
     }, 
+
     deleteProduct: async (_, { id}) => {
       //check that product exists
       let product = await Product.findById(id);
@@ -187,6 +230,7 @@ const resolvers = {
         console.log("Error, couldn't save")
       } 
     },
+
     updateClient: async (_, {id, input }, ctx) => {
 
       //check if client exists
@@ -204,6 +248,7 @@ const resolvers = {
       client = await Client.findOneAndUpdate({_id: id}, input, {new: true});
       return client
     }, 
+
     deleteClient: async (_, { id }, ctx) => {
 
       //check if client exists
@@ -221,6 +266,7 @@ const resolvers = {
       client = await Client.findOneAndDelete({ _id: id });
       return "Client was deleted"
     },
+
     newOrder: async (_, { input }, ctx) => {
 
       const {client} = input
@@ -257,6 +303,65 @@ const resolvers = {
       //Save in database
       const result = await newOrder.save();
       return result
+    },
+
+    updateOrder: async (_, {id, input }, ctx) => {
+
+      const { client } = input
+
+      //Check that order exists
+      const orderExists = await Order.findById(id);
+      if(!orderExists) {
+        throw new Error("Order doesn't exist");
+      }
+
+      //Check that client exists
+      const clientExists = await Client.findById(client);
+      if (!clientExists) {
+        throw new Error("Client doesn't exist");
+      }
+
+      //Check that client is from seller
+      if (clientExists.salesman.toString() !== ctx.user.id) {
+        throw new Error("You don't have credentials to delete this client");
+      }
+
+      //Check availability in stock
+      if (input.order) {
+        for await (const item of input.order) {
+          const { id } = item
+          const product = await Product.findById(id)
+          if (item.quantity > product.availability) {
+            throw new Error(`The article: ${product.name} exceds the available quantity`)
+          } else {
+            //Substract quantity from availability
+            product.availability = product.availability - item.quantity
+            await product.save();
+          }
+        };
+      }
+      
+      //Save order
+      const result = await Order.findOneAndUpdate({_id: id}, input, {new: true});
+      return result
+    },
+
+    deleteOrder: async (_, { id }, ctx) => {
+      //check that order exists
+      let order = await Order.findById(id);
+
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      //check salesman to be deleting
+      if (order.salesman.toString() !== ctx.user.id) {
+        throw new Error("You don't have credentials to delete this order");
+      }
+
+      //Delete
+      await Order.findOneAndDelete({ _id: id });
+      return 'Order has been deleted'
     },
   }
 }
