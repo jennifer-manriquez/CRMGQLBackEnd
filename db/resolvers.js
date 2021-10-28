@@ -115,6 +115,58 @@ const resolvers = {
       const orders = await Order.find({salesman: ctx.user.id, status});
       return orders
     },
+
+    getBestClients: async () => {
+      const bestClients = await Order.aggregate([
+        { $match: {status: "COMPLETED"} },
+        { $group: {
+          _id: "$client",
+          total: { $sum: '$total'}
+        } }, 
+        {
+          $lookup: {
+            from:'clients',
+            localField: '_id', 
+            foreignField: '_id',
+            as: "client"
+          }
+        }, 
+        {
+          $limit: 5
+        },
+        {
+          $sort: { total: -1 }
+        }
+      ])
+      return bestClients
+    }, 
+
+    getBestSellers: async () => {
+      const bestSellers = await Order.aggregate([
+        { $match: { status: "COMPLETED" } },
+        {
+          $group: {
+            _id: "$salesman",
+            total: { $sum: '$total' }
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: "salesman"
+          }
+        },
+        {
+          $limit: 3
+        },
+        {
+          $sort: { total: -1 }
+        }
+      ]) 
+      return bestSellers
+    }, 
   },
 
   Mutation: {
