@@ -8,7 +8,6 @@ const { Error } = require('mongoose');
 require('dotenv').config({ path: '.env' });
 
 const createToken = (user, secret, expiresIn) => {
-  // console.log(user);
   const {id, email, name, lastName} = user; 
 
   return jwt.sign({id, email, name, lastName}, secret, {expiresIn})
@@ -18,10 +17,8 @@ const createToken = (user, secret, expiresIn) => {
 //resolvers
 const resolvers = {
   Query: {
-    getUser: async (_, { token }) => {
-      const userID = await jwt.verify(token, process.env.SECRET);
-
-      return userID
+    getUser: async (_, {}, ctx) => {
+      return ctx.user
     }, 
 
     getProducts: async () => {
@@ -88,7 +85,8 @@ const resolvers = {
 
     getOrdersSeller: async (_, {id}, ctx) => {
       try {
-        const orders = await Order.find({salesman: ctx.user.id});
+        const orders = await Order.find({salesman: ctx.user.id}).populate('client');
+        console.log(orders)
         return orders
       } catch {
         console.log(error);
@@ -178,7 +176,6 @@ const resolvers = {
     newUser: async (_, {input}) => {
 
       const {email, password} = input;
-      console.log('input is', input)
       //Checkif user is registered
       const userExists = await User.findOne({email});
       if (userExists) {
@@ -265,7 +262,6 @@ const resolvers = {
     newClient: async (_, { input }, ctx) => {
       const { email } = input
 
-      console.log(ctx)
       //Check client is registered
       const client = await Client.findOne({ email })
 
